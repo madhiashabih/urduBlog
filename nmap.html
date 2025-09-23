@@ -1,0 +1,124 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/mvp.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/earlyaccess/notonaskharabic.css">
+    <title>مستند بدون عنوان</title>
+    <style>
+        html, body {
+            font-family: 'Noto Naskh Arabic';
+            margin: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+<h3 id="این-میپ-کے-ساتھ-نیٹ-ورک-انیومریشن-htb">این میپ کے ساتھ نیٹ ورک انیومریشن (HTB)</h3>
+<p><strong>وا ک تھرو (Walkthrough)</strong></p>
+<h4 id="ہوسٹ-ڈسکوری-host-discovery">ہوسٹ ڈسکوری (Host Discovery)</h4>
+<p>پچھلے نتیجے کی بنیاد پر یہ پتہ لگائیں کہ یہ کس آپریٹنگ سسٹم سے تعلق رکھتا ہے۔ آپریٹنگ سسٹم کا نام جواب کے طور پر جمع کروائیں۔</p>
+<pre><code class="language-bash">$ sudo nmap &lt;redacted-ip&gt; -sn -oA host -PE --packet-trace --disable-arp-ping
+</code></pre>
+<p>شروع میں، مجھے یہ سمجھ نہیں آیا کہ نتیجے سے آپریٹنگ سسٹم کیسے معلوم کیا جائے۔ تحقیق کے بعد، مجھے معلوم ہوا کہ ICMP جواب میں موجود <strong>TTL (ٹائم ٹو لائیو)</strong> ویلیو ایک مضبوط اشارہ دیتی ہے۔</p>
+<ul>
+<li>ونڈوز سسٹمز عام طور پر TTL کی ابتدائی ویلیو 128 استعمال کرتے ہیں۔</li>
+<li>لینکس/یونکس سسٹمز عام طور پر 64۔</li>
+<li>کچھ نیٹ ورک ڈیوائسز 255۔</li>
+</ul>
+<p>یہ اشارہ OS کو محدود کرنے میں مدد کرتا ہے۔</p>
+<hr>
+<h4 id="ہوسٹ-اور-پورٹ-اسکیننگ-host-and-port-scanning">ہوسٹ اور پورٹ اسکیننگ (Host and Port Scanning)</h4>
+<p>ہدف پر موجود تمام TCP پورٹس تلاش کریں۔ پائے گئے TCP پورٹس کی کل تعداد جواب کے طور پر جمع کروائیں۔</p>
+<pre><code class="language-bash">sudo nmap -p- &lt;redacted-ip&gt;
+</code></pre>
+<p>کھلے ہوئے TCP پورٹس کی تعداد ہی جواب ہے۔</p>
+<p>ہدف کا <strong>ہوسٹ نیم</strong> تلاش کریں اور اسے جواب کے طور پر جمع کروائیں (کیس سینسیٹو ہے)۔</p>
+<p>شروع میں مجھے پتہ نہیں تھا کہ ہوسٹ نیم کیسے ڈھونڈا جائے۔ لیکن <code>-sC</code> اسکین چلانے سے یہ معلومات ظاہر ہو جاتی ہیں، کیونکہ یہ این میپ کے ڈیفالٹ اسکرپٹس استعمال کرتا ہے۔</p>
+<pre><code class="language-bash">sudo nmap -sC &lt;redacted-ip&gt;
+</code></pre>
+<p>ہوسٹ نیم <strong>smb-os-discovery</strong> کے نتیجے میں پایا جا سکتا ہے۔</p>
+<hr>
+<h4 id="نتائج-محفوظ-کرنا-saving-the-results">نتائج محفوظ کرنا (Saving the Results)</h4>
+<p>ہدف پر ایک مکمل TCP پورٹ اسکین کریں اور ایک HTML رپورٹ بنائیں۔ سب سے بڑی پورٹ نمبر کو جواب کے طور پر جمع کروائیں۔</p>
+<pre><code class="language-bash">sudo nmap &lt;redacted-ip&gt; -oX target.xml
+</code></pre>
+<p>XML کو HTML میں بدلنے کے لیے:</p>
+<pre><code class="language-bash">xsltproc style.xsl target.xml &gt; output.html
+</code></pre>
+<p>لینکس ٹرمینل میں براہ راست دیکھنے کے لیے:</p>
+<pre><code class="language-bash">lynx output.html
+</code></pre>
+<hr>
+<h4 id="سروس-انیومریشن-service-enumeration">سروس انیومریشن (Service Enumeration)</h4>
+<p>تمام پورٹس اور ان کی سروسز کا انیومریشن کریں۔ ان میں سے ایک سروس میں فلیگ ہے جسے آپ کو جواب کے طور پر جمع کروانا ہے۔</p>
+<pre><code class="language-bash">sudo nmap -sV -p22,80,110,139,143,445,31337 &lt;redacted-ip&gt;
+</code></pre>
+<hr>
+<h4 id="این-میپ-اسکرپٹنگ-انجن-nmap-scripting-engine">این میپ اسکرپٹنگ انجن (Nmap Scripting Engine)</h4>
+<p>NSE اور اس کی اسکرپٹس استعمال کریں تاکہ وہ فلیگ ڈھونڈ سکیں جو کسی سروس میں موجود ہے، اور اسے جواب کے طور پر جمع کروائیں۔</p>
+<p>پہلی کوشش:</p>
+<pre><code class="language-bash">sudo nmap &lt;redacted-ip&gt; -p 80 -A
+</code></pre>
+<p>کوئی مفید نتیجہ نہیں۔</p>
+<p>دوسری کوشش:</p>
+<pre><code class="language-bash">sudo nmap &lt;redacted-ip&gt; -p 80 -sV --script vuln
+</code></pre>
+<p>اس بار، مجھے <strong>robots.txt</strong> فائل کا حوالہ ملا۔</p>
+<pre><code class="language-bash">curl http://&lt;redacted-ip&gt;/robots.txt
+</code></pre>
+<p>اور وہیں فلیگ موجود تھا۔</p>
+<hr>
+<h3 id="فائر-وال-اور-idsips-ایویژن--آسان-لیب">فائر وال اور IDS/IPS ایویژن – آسان لیب</h3>
+<p>کلائنٹ جاننا چاہتا ہے کہ کیا ہم معلوم کر سکتے ہیں کہ ان کی مشین کون سا آپریٹنگ سسٹم چلا رہی ہے۔ جواب کے طور پر OS کا نام جمع کروائیں۔</p>
+<p>ہم یہ OS خاموشی سے ڈھونڈنا چاہتے ہیں:</p>
+<pre><code class="language-bash">sudo nmap -O --disable-arp-ping -Pn &lt;redacted-ip&gt;
+</code></pre>
+<p>چونکہ یہ روٹ کے طور پر چلایا گیا تھا، اس لیے یہ خودکار طور پر <code>-sS</code> (اسٹیلتھ اسکین) پر ڈیفالٹ ہوا۔ کوئی نتیجہ نہیں آیا۔</p>
+<p>اس سے سختی سے اندازہ ہوتا ہے کہ فائر وال ہماری کوششوں کو بلاک کر رہا ہے۔ چونکہ یہ ایک خاموش اسکین تھا، اس لیے کوئی الرٹ ٹریگر نہیں ہوا۔</p>
+<p>اگلا، میں نے پچھلی مشق کا طریقہ آزمایا:</p>
+<pre><code class="language-bash">sudo nmap -sn -PE --packet-trace --disable-arp-ping &lt;redacted-ip&gt;
+</code></pre>
+<p>پھر میں نے TTL ویلیوز دیکھیں:</p>
+<ul>
+<li>ونڈوز = 128</li>
+<li>لینکس/یونکس = 64</li>
+<li>نیٹ ورک ڈیوائسز = 255</li>
+</ul>
+<p>اس سے ظاہر ہوا کہ OS لینکس ہے۔</p>
+<p>مزید یہ جاننے کے لیے کہ کون سی لینکس ڈسٹری بیوشن ہے، میں نے سروس ورژنز کے لیے اسکین کیا:</p>
+<pre><code class="language-bash">sudo nmap -sV -p22,80,110,139,143,445,10001 --disable-arp-ping -Pn &lt;redacted-ip&gt;
+</code></pre>
+<p>اور جواب مل گیا!</p>
+<hr>
+<h3 id="فائر-وال-اور-idsips-ایویژن--درمیانی-لیب">فائر وال اور IDS/IPS ایویژن – درمیانی لیب</h3>
+<p>کنفیگریشن ٹرانسفر کرنے کے بعد، کلائنٹ جاننا چاہتا ہے کہ کیا ہدف کے DNS سرور کا ورژن معلوم کیا جا سکتا ہے۔ جواب کے طور پر DNS سرور ورژن جمع کروائیں۔</p>
+<p>DNS عموماً پورٹ 53 پر چلتا ہے۔</p>
+<pre><code class="language-bash">sudo nmap -sV -p53 --disable-arp-ping -Pn &lt;redacted-ip&gt;
+</code></pre>
+<p>پورٹ بند نظر آیا۔ بند پورٹ کا مطلب ہے کہ ہمارے SYN پیکٹ کو RST + ACK جواب ملا۔</p>
+<p>پھر مجھے نوٹ ملا:
+&quot;یہ مشق حل کرنے کے لیے ہمیں VPN پر UDP پروٹوکول استعمال کرنا ہوگا۔&quot;</p>
+<p>لہٰذا میں نے دوبارہ UDP کے ساتھ کوشش کی:</p>
+<pre><code class="language-bash">sudo nmap -sUV -p53 --disable-arp-ping -n -Pn &lt;redacted-ip&gt;
+</code></pre>
+<hr>
+<h3 id="فائر-وال-اور-idsips-ایویژن--مشکل-لیب">فائر وال اور IDS/IPS ایویژن – مشکل لیب</h3>
+<p>اب کلائنٹ جاننا چاہتا ہے کہ کیا یہ ممکن ہے کہ کسی مخصوص چلتی ہوئی سروس کا ورژن پہچانا جائے۔ جواب کے طور پر فلیگ جمع کروائیں۔</p>
+<p>اشارہ: کلائنٹ نے کہا کہ انہوں نے بڑی مقدار میں ڈیٹا ہینڈل کرنے کے لیے ایک ضروری سروس شامل کی ہے۔</p>
+<p>سب سے پہلے، میں نے اسکین کیا تاکہ معلوم ہو کہ کون سی نئی سروسز موجود ہیں:</p>
+<pre><code class="language-bash">sudo nmap -sV -Pn --disable-arp-ping &lt;redacted-ip&gt;
+</code></pre>
+<p>میں نے <strong>پورٹ 50000</strong> نوٹ کیا۔</p>
+<p>اگلا، میں نے نیٹ کیٹ (netcat) کے ساتھ کنیکٹ کرنے کی کوشش کی:</p>
+<pre><code class="language-bash">ncat -nv --source-port 53 &lt;redacted-ip&gt; 50000
+</code></pre>
+<p>یہ میرے ParrotOS ٹرمینل پر ناکام رہا، اس لیے میں نے Pwnbox پر سوئچ کیا۔ پہلے &quot;permission denied&quot; ایرر آیا، لیکن <code>sudo</code> کے ساتھ چلانے پر کام کیا:</p>
+<pre><code class="language-bash">sudo ncat -nv --source-port 53 &lt;redacted-ip&gt; 50000
+</code></pre>
+<hr>
+
+</body>
+</html>
